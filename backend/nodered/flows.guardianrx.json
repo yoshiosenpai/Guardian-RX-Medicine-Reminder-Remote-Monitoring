@@ -1,0 +1,330 @@
+
+> Import this in Node-RED (Menu → Import → Clipboard).  
+> Set env vars: `GDRX_SHEET_WEBHOOK`, `TELEGRAM_CHAT_ID`, and (if using Email) `SMTP_HOST`, `SMTP_PORT`.
+
+[
+  {
+    "id": "6e3a2b2d4d8b0a1a",
+    "type": "tab",
+    "label": "GuardianRX",
+    "disabled": false,
+    "info": "MQTT → CSV + Google Sheets + Telegram/Email"
+  },
+  {
+    "id": "8b0d3dd1c7b9a1e1",
+    "type": "mqtt-broker",
+    "name": "Local Mosquitto",
+    "broker": "localhost",
+    "port": "1883",
+    "clientid": "",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true,
+    "birthTopic": "",
+    "birthQos": "0",
+    "birthPayload": "",
+    "birthMsg": {},
+    "closeTopic": "",
+    "closeQos": "0",
+    "closePayload": "",
+    "closeMsg": {},
+    "willTopic": "",
+    "willQos": "0",
+    "willPayload": "",
+    "willMsg": {}
+  },
+  {
+    "id": "a1b4a1a63f5c2b77",
+    "type": "mqtt in",
+    "z": "6e3a2b2d4d8b0a1a",
+    "name": "Events in",
+    "topic": "guardianrx/+/med/+/event",
+    "qos": "1",
+    "datatype": "auto",
+    "broker": "8b0d3dd1c7b9a1e1",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "x": 140,
+    "y": 100,
+    "wires": [
+      [
+        "d7a2c8d0f9bfb1a2"
+      ]
+    ]
+  },
+  {
+    "id": "d7a2c8d0f9bfb1a2",
+    "type": "function",
+    "z": "6e3a2b2d4d8b0a1a",
+    "name": "Normalize + derive",
+    "func": "// topic: guardianrx/<deviceId>/med/<container>/event\n// payload: {type, ts, med, dose, due, rssi}\n// output: msg.row (CSV), msg.sheet (object), msg.notice (string)\n\nconst topic = msg.topic.split('/');\nconst deviceId = topic[1] || \"unknown\";\nconst container = topic[3] || \"1\";\n\nlet p = {};\ntry {\n  p = (typeof msg.payload === 'string') ? JSON.parse(msg.payload) : msg.payload;\n} catch(e){\n  node.warn(\"Invalid JSON payload\");\n  return null;\n}\n\nconst ts = (p.ts && Number.isFinite(p.ts)) ? new Date(p.ts*1000) : new Date();\nconst ts_iso = ts.toISOString();\nconst evt = String(p.type||'').toLowerCase();\n\n// Map event → result label\nconst map = { taken_ack:\"TAKEN\", late:\"LATE\", missed:\"MISSED\" };\nconst result = map[evt] || \"INFO\";\n\n// Prepare CSV row fields\nconst row = [\n  ts_iso,\n  deviceId,\n  container,\n  evt,\n  p.med||\"\",\n  p.dose||\"\",\n  p.due||\"\",\n  result,\n  (p.rssi!==undefined?p.rssi:\"\")\n];\n\nmsg.row = row.join(',');\nmsg.sheet = {\n  ts_iso,\n  deviceId,\n  container,\n  event: evt,\n  med_name: p.med||\"\",\n  dosage: p.dose||\"\",\n  due_hhmm: p.due||\"\",\n  result,\n  rssi: (p.rssi!==undefined?p.rssi:\"\")\n};\n\n// Human message (Telegram/Email)\nlet text = `GuardianRX — ${deviceId} C${container}\\n`+\n           `Event: ${evt.toUpperCase()}\\n`+\n           `Med: ${p.med||''} | ${p.dose||''}\\n`+\n           `Due: ${p.due||''} | Time: ${ts_iso}`;\nmsg.notice = text;\n\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 360,
+    "y": 100,
+    "wires": [
+      [
+        "b2d1ad7d89a85eaf",
+        "9d9a0b2f8a0ef2b5",
+        "f463b9fa195a8070",
+        "f3ab754ba0f2eed7"
+      ]
+    ]
+  },
+  {
+    "id": "9d9a0b2f8a0ef2b5",
+    "type": "file",
+    "z": "6e3a2b2d4d8b0a1a",
+    "name": "Append CSV",
+    "filename": "/data/guardianrx.csv",
+    "appendNewline": true,
+    "createDir": true,
+    "overwriteFile": "false",
+    "encoding": "none",
+    "x": 620,
+    "y": 80,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "b2d1ad7d89a85eaf",
+    "type": "change",
+    "z": "6e3a2b2d4d8b0a1a",
+    "name": "Build HTTP body",
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "$string(sheet)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "headers.Content-Type",
+        "pt": "msg",
+        "to": "application/json",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 640,
+    "y": 60,
+    "wires": [
+      [
+        "9d9a0b2f8a0ef2b5"
+      ]
+    ]
+  },
+  {
+    "id": "f463b9fa195a8070",
+    "type": "http request",
+    "z": "6e3a2b2d4d8b0a1a",
+    "name": "POST to Google Apps Script",
+    "method": "POST",
+    "ret": "txt",
+    "paytoqs": "ignore",
+    "url": "${GDRX_SHEET_WEBHOOK}",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "authType": "",
+    "senderr": false,
+    "headers": [
+      {
+        "key": "Content-Type",
+        "value": "application/json"
+      }
+    ],
+    "x": 700,
+    "y": 120,
+    "wires": [
+      [
+        "2e23b1a66f7b9f1e"
+      ]
+    ]
+  },
+  {
+    "id": "2e23b1a66f7b9f1e",
+    "type": "switch",
+    "z": "6e3a2b2d4d8b0a1a",
+    "name": "200 OK?",
+    "property": "statusCode",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "eq",
+        "v": "200",
+        "vt": "num"
+      },
+      {
+        "t": "else"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 2,
+    "x": 930,
+    "y": 120,
+    "wires": [
+      [],
+      [
+        "6f2d3d33e9f5b291"
+      ]
+    ]
+  },
+  {
+    "id": "6f2d3d33e9f5b291",
+    "type": "debug",
+    "z": "6e3a2b2d4d8b0a1a",
+    "name": "Sheets error",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 1110,
+    "y": 120,
+    "wires": []
+  },
+  {
+    "id": "f3ab754ba0f2eed7",
+    "type": "switch",
+    "z": "6e3a2b2d4d8b0a1a",
+    "name": "Notify only LATE/MISSED?",
+    "property": "sheet.result",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "eq",
+        "v": "LATE",
+        "vt": "str"
+      },
+      {
+        "t": "eq",
+        "v": "MISSED",
+        "vt": "str"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 2,
+    "x": 680,
+    "y": 180,
+    "wires": [
+      [
+        "8f3d1d1b9c1e2dd7",
+        "c5a5c7237a2d9f4c"
+      ],
+      [
+        "f5a3e3ad3b90b7a5"
+      ]
+    ]
+  },
+  {
+    "id": "8f3d1d1b9c1e2dd7",
+    "type": "telegram sender",
+    "z": "6e3a2b2d4d8b0a1a",
+    "name": "Telegram nurse group",
+    "bot": "e2f0b2c59a9e33a1",
+    "haserroroutput": false,
+    "outputs": 1,
+    "x": 980,
+    "y": 160,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "c5a5c7237a2d9f4c",
+    "type": "e-mail",
+    "z": "6e3a2b2d4d8b0a1a",
+    "server": "${SMTP_HOST}",
+    "port": "${SMTP_PORT}",
+    "secure": false,
+    "tls": true,
+    "name": "",
+    "dname": "Email medical center",
+    "x": 980,
+    "y": 200,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "f5a3e3ad3b90b7a5",
+    "type": "switch",
+    "z": "6e3a2b2d4d8b0a1a",
+    "name": "Toggle TAKEN notifications (optional)",
+    "property": "sheet.result",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "eq",
+        "v": "TAKEN",
+        "vt": "str"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 1,
+    "x": 980,
+    "y": 240,
+    "wires": [
+      [
+        "a4c1a47f8307951a"
+      ]
+    ]
+  },
+  {
+    "id": "a4c1a47f8307951a",
+    "type": "delay",
+    "z": "6e3a2b2d4d8b0a1a",
+    "name": "Rate-limit TAKEN (5s)",
+    "pauseType": "rate",
+    "timeout": "5",
+    "timeoutUnits": "seconds",
+    "rate": "1",
+    "nbRateUnits": "5",
+    "rateUnits": "second",
+    "randomFirst": "0",
+    "randomLast": "0",
+    "randomUnits": "seconds",
+    "drop": true,
+    "x": 1250,
+    "y": 240,
+    "wires": [
+      [
+        "8f3d1d1b9c1e2dd7"
+      ]
+    ]
+  },
+  {
+    "id": "e2f0b2c59a9e33a1",
+    "type": "telegram bot",
+    "botname": "GuardianRXBot",
+    "usernames": "",
+    "chatids": "${TELEGRAM_CHAT_ID}",
+    "baseapiurl": "",
+    "updatemode": "polling",
+    "pollinterval": "300",
+    "usesocks": false,
+    "sockshost": "",
+    "socksport": "6667",
+    "socksusername": "anonymous",
+    "sockspassword": ""
+  }
+]
