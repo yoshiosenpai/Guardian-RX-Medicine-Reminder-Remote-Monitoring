@@ -80,6 +80,7 @@ guardian-rx/
 | Item                       | Qty | Unit (RM) | Subtotal (RM) | Link                                                            |
 | -------------------------- | --: | --------: | ------------: | --------------------------------------------------------------- |
 | ROBOESP 32                 |   1 |     59.60 |         59.60 | [Cytron](https://my.cytron.io/p-robo-esp32)                     |
+| ESP 32 Board               |   1 |     29.00 |         29.00 | [Cytron](https://my.cytron.io/p-robo-esp32)                     |
 | IR Sensor Module           |   4 |      1.90 |          7.60 | [Cytron](https://my.cytron.io/p-infrared-sensor-module)         |
 | Grove LCD Display          |   1 |        34 |            34 | [Cytron](https://my.cytron.io/p-grove-16-x-2-lcd-white-on-blue) |
 | Grove Button               |   4 |      9.45 |          37.8 | [Cytron](https://my.cytron.io/p-grove-button)                   |
@@ -91,8 +92,7 @@ guardian-rx/
 | Pillbox                    |   2 |      3.55 |          7.10 | [TinyURL](https://tinyurl.com/pillbox-fyp)                      |
 | 3D Print Enclosure         |   1 |    est 30 |            30 | —                                                               |
 
-**Total (approx.) = RM 277.30**
-
+**Total (approx.) = RM 306.30** + Forgot to add ESP32 board
 ---
 
 ##  Wiring Overview
