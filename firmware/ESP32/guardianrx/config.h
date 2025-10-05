@@ -5,8 +5,8 @@
 #define WIFI_PASS   "test123456"
 
 // ==== Telegram ====
-#define TELEGRAM_BOT_TOKEN "bot-token
-#define TELEGRAM_CHAT_ID   "telegram-chat-ID"  // your chat ID
+#define TELEGRAM_BOT_TOKEN "BOT TOKEN"
+#define TELEGRAM_CHAT_ID   "CHAT ID"  // your chat ID
 
 // ==== Pin Mapping (ROBO ESP32) ====
 #define PIN_IR1   25   // Grove Port 1
