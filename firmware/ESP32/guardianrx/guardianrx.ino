@@ -5,192 +5,226 @@
 #include "rgb_lcd.h"
 #include "config.h"
 
-// ================= LCD =================
+
+#ifndef WRISTBAND_URL
+#define WRISTBAND_URL "http://192.168.137.214/vibrate"   // <- set IP ESP32-C3 IP
+#endif
+
+
 rgb_lcd lcd;
 
-// ================= Config =================
+
 #define NUM_CONTAINERS 3
-int irPins[NUM_CONTAINERS] = {PIN_IR1, PIN_IR2, PIN_IR3};
+int irPins[NUM_CONTAINERS] = { PIN_IR1, PIN_IR2, PIN_IR3 };
 
 struct Container {
-  uint16_t hh=0, mm=0;   // user-set duration
-  long remaining=0;      // countdown seconds
-  bool active=false;
+  uint16_t hh = 0;        
+  uint16_t mm = 0;        
+  long     remaining = 0; 
+  bool     active = false;
 };
 Container containers[NUM_CONTAINERS];
-int currentContainer = 0;  // selected container index
+int currentContainer = 0;  
 
-// ================= Button Debounce =================
-bool readButton(int pin) {
-  static uint32_t lastMs[50] = {0};
-  static bool lastState[50] = {false};
-  bool now = (digitalRead(pin)==LOW);
-  if (now != lastState[pin] && millis()-lastMs[pin] > 150) {
-    lastMs[pin] = millis();
-    lastState[pin] = now;
-    return now; // true on new press
+
+static bool readButton(int pin) {
+  static uint32_t lastMs[64]  = {0};
+  static uint8_t  lastLvl[64] = {HIGH};
+  uint8_t now = digitalRead(pin);
+  if (now != lastLvl[pin] && (millis() - lastMs[pin] > 120)) {
+    lastMs[pin]  = millis();
+    lastLvl[pin] = now;
+    return (now == LOW);            // "pressed" edge
   }
   return false;
 }
 
-// ================= Buzzer =================
-void buzz(uint16_t ms=500){
-  digitalWrite(PIN_BUZZ,HIGH);
+
+static void buzz(uint16_t ms = 500) {
+  pinMode(PIN_BUZZ, OUTPUT);
+  digitalWrite(PIN_BUZZ, HIGH);
   delay(ms);
-  digitalWrite(PIN_BUZZ,LOW);
+  digitalWrite(PIN_BUZZ, LOW);
 }
 
-// ================= Telegram =================
-void sendTelegram(const String &msg) {
-  if(WiFi.status()!=WL_CONNECTED) return;
+
+static void telegramSend(const String &msg) {
+  if (WiFi.status() != WL_CONNECTED) return;
   HTTPClient http;
-  String url="https://api.telegram.org/bot"+String(TELEGRAM_BOT_TOKEN)+
-             "/sendMessage?chat_id="+TELEGRAM_CHAT_ID+
-             "&text="+msg;
-  http.begin(url); 
-  int code=http.GET();
-  Serial.printf("[Telegram] %s | Code:%d\n", msg.c_str(), code);
+  String url = "https://api.telegram.org/bot" + String(TELEGRAM_BOT_TOKEN)
+             + "/sendMessage?chat_id=" + TELEGRAM_CHAT_ID
+             + "&text=" + msg;
+  http.begin(url);
+  int code = http.GET();
+  Serial.printf("[Telegram] %s | Code: %d\n", msg.c_str(), code);
   http.end();
 }
 
-// ================= Tasks =================
 
-// --- IR Monitoring ---
-void irTask(void *pv) {
-  bool lastState[NUM_CONTAINERS] = {HIGH,HIGH,HIGH};
-  while(1){
-    for(int i=0;i<NUM_CONTAINERS;i++){
-      int val = digitalRead(irPins[i]);
-      if(val==LOW && lastState[i]==HIGH){ // falling edge
-        String msg = "Container " + String(i+1) + " opened";
-        sendTelegram(msg);
+static void notifyWristband() {
+  if (WiFi.status() != WL_CONNECTED) return;
+  HTTPClient http;
+  http.begin(WRISTBAND_URL);
+  int code = http.GET();
+  Serial.printf("[Wristband] GET %s -> %d\n", WRISTBAND_URL, code);
+  http.end();
+}
+
+
+static void irTask(void *pv) {
+  bool last[NUM_CONTAINERS] = { HIGH, HIGH, HIGH };
+  for (int i = 0; i < NUM_CONTAINERS; i++) pinMode(irPins[i], INPUT);
+
+  while (true) {
+    for (int i = 0; i < NUM_CONTAINERS; i++) {
+      int v = digitalRead(irPins[i]);
+      if (v == LOW && last[i] == HIGH) {
+        telegramSend("Container " + String(i + 1) + " opened");
       }
-      lastState[i]=val;
+      last[i] = v;
     }
-    vTaskDelay(100/portTICK_PERIOD_MS);
+    vTaskDelay(100 / portTICK_PERIOD_MS);
   }
 }
 
-// --- Countdown Task ---
-void countdownTask(void *pv){
-  while(1){
-    for(int i=0;i<NUM_CONTAINERS;i++){
-      if(containers[i].active && containers[i].remaining>0){
+
+static void countdownTask(void *pv) {
+  while (true) {
+    for (int i = 0; i < NUM_CONTAINERS; i++) {
+      if (containers[i].active && containers[i].remaining > 0) {
         containers[i].remaining--;
-        if(containers[i].remaining==0){
+        if (containers[i].remaining == 0) {
+          // Timer finished for container i
           buzz(700);
-          String msg="Reminder: Timer finished for Container "+String(i+1);
-          sendTelegram(msg);
-          containers[i].active=false; // stop timer
+          telegramSend("Reminder: Take medicine from Container " + String(i + 1));
+          notifyWristband();
+          containers[i].active = false;  
         }
       }
     }
-    vTaskDelay(1000/portTICK_PERIOD_MS); // tick every second
+    vTaskDelay(1000 / portTICK_PERIOD_MS);  
   }
 }
 
-// --- UI Task ---
+
 enum UiMode { VIEW, SET_HH, SET_MM };
-UiMode uiMode = VIEW;
-uint32_t lastLcdUpdate=0;
+static UiMode uiMode = VIEW;
+static uint32_t lastLcd = 0;
 
-void uiTask(void *pv){
-  lcd.begin(16,2);
-  lcd.setRGB(0,255,255);
+static void uiTask(void *pv) {
+  // Buttons & LCD
+  pinMode(PIN_BTN_SET,  INPUT_PULLUP);
+  pinMode(PIN_BTN_UP,   INPUT_PULLUP);
+  pinMode(PIN_BTN_DOWN, INPUT_PULLUP);
 
-  while(1){
-    if (millis()-lastLcdUpdate > 500) {
-      lastLcdUpdate=millis();
+  lcd.begin(16, 2);
+  lcd.setRGB(0, 255, 255);
+
+  while (true) {
+
+    if (millis() - lastLcd > 500) {
+      lastLcd = millis();
       lcd.clear();
 
-      if(uiMode==VIEW){
-        lcd.setCursor(0,0);
-        lcd.print("Container "); lcd.print(currentContainer+1);
+      if (uiMode == VIEW) {
+        lcd.setCursor(0, 0);
+        lcd.print("Container ");
+        lcd.print(currentContainer + 1);
 
-        lcd.setCursor(0,1);
-        if(containers[currentContainer].active && containers[currentContainer].remaining>0){
-          int h=containers[currentContainer].remaining/3600;
-          int m=(containers[currentContainer].remaining%3600)/60;
-          int s=containers[currentContainer].remaining%60;
-          char buf[16]; sprintf(buf,"%02d:%02d:%02d",h,m,s);
+        lcd.setCursor(0, 1);
+        if (containers[currentContainer].active && containers[currentContainer].remaining > 0) {
+          long t = containers[currentContainer].remaining;
+          int h = t / 3600;
+          int m = (t % 3600) / 60;
+          int s = t % 60;
+          char buf[16]; snprintf(buf, sizeof(buf), "%02d:%02d:%02d", h, m, s);
           lcd.print(buf);
         } else {
           lcd.print("Timer not set");
         }
-      }
-      else { // SET_HH / SET_MM
-        lcd.setCursor(0,0); 
-        lcd.print("Set C"); lcd.print(currentContainer+1);
-        char buf[8]; sprintf(buf,"%02d:%02d",containers[currentContainer].hh,containers[currentContainer].mm);
-        lcd.setCursor(0,1); lcd.print(buf);
-        // cursor indicator
-        if(uiMode==SET_HH) lcd.setCursor(0,1); 
-        else lcd.setCursor(3,1);
-        lcd.blink(); 
-      }
-    }
-
-    // ===== Button Handling =====
-    if(readButton(PIN_BTN_UP)){
-      if(uiMode==VIEW){
-        currentContainer=(currentContainer+1)%NUM_CONTAINERS;
-      } else if(uiMode==SET_HH){
-        containers[currentContainer].hh=(containers[currentContainer].hh+1)%24;
-      } else if(uiMode==SET_MM){
-        containers[currentContainer].mm=(containers[currentContainer].mm+1)%60;
-      }
-    }
-
-    if(readButton(PIN_BTN_DOWN)){
-      if(uiMode==VIEW){
-        currentContainer=(currentContainer+NUM_CONTAINERS-1)%NUM_CONTAINERS;
-      } else if(uiMode==SET_HH){
-        containers[currentContainer].hh=(containers[currentContainer].hh+23)%24;
-      } else if(uiMode==SET_MM){
-        containers[currentContainer].mm=(containers[currentContainer].mm+59)%60;
-      }
-    }
-
-    if(readButton(PIN_BTN_SET)){
-      if(uiMode==VIEW){
-        uiMode=SET_HH; // enter edit mode
-      } else if(uiMode==SET_HH){
-        uiMode=SET_MM; // switch to minute
-      } else if(uiMode==SET_MM){
-        // Save timer as countdown
-        containers[currentContainer].remaining = containers[currentContainer].hh*3600 + containers[currentContainer].mm*60;
-        if(containers[currentContainer].remaining>0) containers[currentContainer].active=true;
-        lcd.clear(); lcd.print("Saved!"); 
-        vTaskDelay(1000/portTICK_PERIOD_MS);
-        uiMode=VIEW; // back to view
         lcd.noBlink();
+      } else {
+
+        lcd.setCursor(0, 0);
+        lcd.print("Set C");
+        lcd.print(currentContainer + 1);
+        char buf[8];
+        snprintf(buf, sizeof(buf), "%02d:%02d",
+                 containers[currentContainer].hh,
+                 containers[currentContainer].mm);
+        lcd.setCursor(0, 1);
+        lcd.print(buf);
+        lcd.blink();
+        if (uiMode == SET_HH) lcd.setCursor(0, 1); else lcd.setCursor(3, 1);
       }
     }
 
-    vTaskDelay(50/portTICK_PERIOD_MS);
+
+    if (readButton(PIN_BTN_UP)) {
+      if (uiMode == VIEW) {
+        currentContainer = (currentContainer + 1) % NUM_CONTAINERS;
+      } else if (uiMode == SET_HH) {
+        containers[currentContainer].hh = (containers[currentContainer].hh + 1) % 24;
+      } else {
+        containers[currentContainer].mm = (containers[currentContainer].mm + 1) % 60;
+      }
+    }
+
+    if (readButton(PIN_BTN_DOWN)) {
+      if (uiMode == VIEW) {
+        currentContainer = (currentContainer + NUM_CONTAINERS - 1) % NUM_CONTAINERS;
+      } else if (uiMode == SET_HH) {
+        containers[currentContainer].hh = (containers[currentContainer].hh + 23) % 24;
+      } else {
+        containers[currentContainer].mm = (containers[currentContainer].mm + 59) % 60;
+      }
+    }
+
+    if (readButton(PIN_BTN_SET)) {
+      if (uiMode == VIEW) {
+        uiMode = SET_HH;   // enter edit
+      } else if (uiMode == SET_HH) {
+        uiMode = SET_MM;   // switch to minutes
+      } else {
+        // Save -> convert HH:MM to seconds and start countdown
+        containers[currentContainer].remaining =
+            (long)containers[currentContainer].hh * 3600L +
+            (long)containers[currentContainer].mm * 60L;
+        containers[currentContainer].active = (containers[currentContainer].remaining > 0);
+
+        lcd.clear(); lcd.print("Saved!"); delay(900);
+        uiMode = VIEW; lcd.noBlink();
+      }
+    }
+
+    vTaskDelay(50 / portTICK_PERIOD_MS);
   }
 }
 
-// ================= Setup =================
-void setup(){
+
+void setup() {
   Serial.begin(115200);
+  delay(300);
 
-  // Pins
-  pinMode(PIN_BTN_SET,INPUT_PULLUP);
-  pinMode(PIN_BTN_UP, INPUT_PULLUP);
-  pinMode(PIN_BTN_DOWN,INPUT_PULLUP);
-  pinMode(PIN_BUZZ,OUTPUT);
-  for(int i=0;i<NUM_CONTAINERS;i++) pinMode(irPins[i],INPUT);
-
-  // WiFi
-  WiFi.begin(WIFI_SSID,WIFI_PASS);
-  while(WiFi.status()!=WL_CONNECTED){ delay(500); Serial.print("."); }
-  Serial.println("\n[WiFi] Connected! IP="+WiFi.localIP().toString());
+  // Wi-Fi
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  Serial.print("[WiFi] Connecting");
+  uint8_t tries = 0;
+  while (WiFi.status() != WL_CONNECTED && tries < 40) { delay(250); Serial.print("."); tries++; }
+  Serial.println();
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.printf("[WiFi] Connected: %s\n", WiFi.localIP().toString().c_str());
+  } else {
+    Serial.println("[WiFi] Failed (continuing offline).");
+  }
 
   // Tasks
-  xTaskCreatePinnedToCore(irTask,"IR",4096,NULL,1,NULL,1);
-  xTaskCreatePinnedToCore(uiTask,"UI",4096,NULL,1,NULL,1);
-  xTaskCreatePinnedToCore(countdownTask,"Countdown",4096,NULL,1,NULL,1);
+  xTaskCreatePinnedToCore(irTask,        "IR",        4096, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(countdownTask, "Countdown", 4096, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(uiTask,        "UI",        4096, NULL, 1, NULL, 1);
 }
 
-void loop(){}
+void loop() {
+
+}

@@ -1,4 +1,0 @@
-ts_iso,deviceId,container,event,med_name,dosage,due_hhmm,result,rssi
-2025-09-03T09:05:30+08:00,rx-001,1,taken_ack,Metformin 500mg,"1 tab after meal",08:00,TAKEN,-61
-2025-09-03T13:00:20+08:00,rx-001,1,late,Amlodipine 10mg,"1 tab morning",13:00,LATE,-63
-2025-09-03T20:01:00+08:00,rx-001,1,missed,Lisinopril 20mg,"1 tab after dinner",20:00,MISSED,-59

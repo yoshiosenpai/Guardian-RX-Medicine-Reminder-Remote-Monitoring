@@ -8,72 +8,24 @@
 
 ## 📌 Project Overview
 
-**Guardian RX** is a smart pillbox system with an optional **BLE wristband**.
+Guardian RX is an IoT-based medicine reminder system built around two devices:
 
-* Helps patients remember medication with **local display, buzzer, and reminders**.
-* Logs adherence remotely via **Node-RED + MQTT**.
-* Alerts caregivers with **Telegram/Email notifications**.
-* Extends to a **wearable wristband** that vibrates when alarms trigger.
+- **Pillbox (ROBO ESP32)** – monitors pill container lids, displays schedules, sends alerts.  
+- **Wristband (ESP32-C3)** – receives reminder signals via Wi-Fi and vibrates to notify the patient.
 
----
 
-## 📂 Repository Structure
-
-```
-guardian-rx/
-├─ firmware/
-│  ├─ ArduinoIDE/GuardianRX/     # Pillbox firmware
-│  ├─ ArduinoIDE/Wristband/      # Wristband firmware
-├─ backend/nodered/              # Node-RED flow + webhook
-├─ hardware/                     # Wiring tables, BOM
-├─ data/                         # Example CSV/Sheet schema
-├─ safety/                       # Disclaimer
-└─ README.md
-```
 ---
 
 ##  Features
-
-### Pillbox (ROBO ESP32)
-
-1. **IR Sensor Monitoring** – Detects pillbox interaction per container.
-2. **LCD Display (I²C)** – Shows medicine name + dosage instructions.
-3. **Buttons (SET / UP / DOWN)** – Configure reminders locally.
-4. **Built-in Buzzer** – Audio alarm at reminder time.
-5. **MQTT Publish** – Events logged to Node-RED → CSV + Google Sheets.
-6. **Telegram/Email Alerts** – Caregivers notified on *LATE* or *MISSED*.
-
-### Wristband (XIAO ESP32C3)
-
-1. **BLE Peripheral** – Pairs with the pillbox as BLE Central.
-2. **DRV2605L Haptic Driver + ERM motor** – Provides vibration feedback.
-3. **Custom GATT service** – Receives simple `[pattern, repeats, strength]` packets.
-4. **Battery-powered** – Runs on 3.7 V LiPo (charged via USB-C or JST-PH pads).
-5. **Wearable** – 3D-printed capsule + wrist strap for patient comfort.
+- 3 × IR sensors detect when each container is opened.  
+- LCD shows container info + countdown timer.  
+- Buzzer and Telegram alert when time is up.  
+- Wristband vibrates wirelessly via Wi-Fi HTTP trigger.  
+- Single Li-Po battery for both ESP32-C3 + Maker Drive.  
 
 ---
 
 ##  Hardware
-
-### Pillbox Unit
-
-* ROBO ESP32 (main controller, built-in buzzer, Grove ports)
-* 4 × IR Sensor Modules (one per container)
-* Grove LCD Display (16×2 or 20×4, I²C)
-* 3 × Grove Buttons (SET, UP, DOWN)
-* Pillbox enclosure (off-the-shelf or 3D-printed)
-* Grove cables
-
-### Wristband Unit
-
-* Seeed XIAO ESP32C3 (with LiPo pads)
-* DRV2605L haptic driver (I²C)
-* Vibrating ERM motor (3 V)
-* LiPo 3.7 V 800 mAh + JST-PH 2.0 female connector
-* 3D-printed capsule enclosure
-* Wrist strap (Velcro/TPU)
-
-> 🔧 Note: The XIAO ESP32C3 version in the BOM requires you to **solder a JST-PH connector** or LiPo wires to the `BAT+/BAT-` pads. It already has a charging circuit onboard.
 
 ##  Estimated Cost (Prototype, MYR)
 
@@ -81,118 +33,117 @@ guardian-rx/
 | -------------------------- | --: | --------: | ------------: | --------------------------------------------------------------- |
 | ROBOESP 32                 |   1 |     59.60 |         59.60 | [Cytron](https://my.cytron.io/p-robo-esp32)                     |
 | ESP 32 Board               |   1 |     29.00 |         29.00 | [Cytron](https://my.cytron.io/p-robo-esp32)                     |
-| IR Sensor Module           |   4 |      1.90 |          7.60 | [Cytron](https://my.cytron.io/p-infrared-sensor-module)         |
+| IR Sensor Module           |   3 |      1.90 |          7.60 | [Cytron](https://my.cytron.io/p-infrared-sensor-module)         |
 | Grove LCD Display          |   1 |        34 |            34 | [Cytron](https://my.cytron.io/p-grove-16-x-2-lcd-white-on-blue) |
-| Grove Button               |   4 |      9.45 |          37.8 | [Cytron](https://my.cytron.io/p-grove-button)                   |
+| Grove Button               |   3 |      9.45 |          37.8 | [Cytron](https://my.cytron.io/p-grove-button)                   |
 | Seeed XIAO ESP32C3         |   1 |     33.50 |         33.50 | [Cytron](https://my.cytron.io/p-seeed-xiao-esp32c3)             |
-| DRV2605L Haptic            |   1 |     24.70 |         24.70 | [TinyURL](https://tinyurl.com/DRV2605L-haptic)                  |
+| MAKER DRIVE                |   1 |     24.70 |         24.70 | [TinyURL](https://tinyurl.com/DRV2605L-haptic)                  |
 | Vibrating Motor            |   1 |      4.50 |          4.50 | [Cytron](https://my.cytron.io/p-mini-disc-vibrating-motor-1027) |
 | LiPo Battery 3.7 V 800 mAh |   1 |        13 |            13 | [TinyURL](https://tinyurl.com/lipo-battery-v)                   |
-| PH2.0 Female Connector     |   1 |         3 |             3 | [TinyURL](https://tinyurl.com/jht-connector)                    |
 | Pillbox                    |   2 |      3.55 |          7.10 | [TinyURL](https://tinyurl.com/pillbox-fyp)                      |
 | 3D Print Enclosure         |   1 |    est 30 |            30 | —                                                               |
 
-**Total (approx.) = RM 306.30** + Forgot to add ESP32 board
+**Total (approx.) = RM 277.30** + Forgot to add ESP32 board
 ---
 
-##  Wiring Overview
+## 🔌 Wiring Overview
 
-### Pillbox (ROBO ESP32 build)
+### Pillbox (ROBO ESP32)
+| Function | Pin | Notes |
+|-----------|-----|-------|
+| IR Sensor 1 | GPIO 16 | Container 1 |
+| IR Sensor 2 | GPIO 25 | Container 2 |
+| IR Sensor 3 | GPIO 26 | Container 3 |
+| LCD I2C | GPIO 21 (SDA), 22 (SCL) | Grove LCD |
+| Buttons | 33 (SET), 32 (UP), 39 (DOWN) | Pull-ups enabled |
+| Buzzer | GPIO 23 | Onboard |
 
-| Function           | Module                  | Grove Port |       ESP32 Pin | Notes                                     |
-| ------------------ | ----------------------- | ---------- | --------------: | ----------------------------------------- |
-| LCD (I²C)          | Grove I²C LCD / RGB LCD | I²C port   | SDA=21 / SCL=22 | 5 V/3.3 V                                 |
-| IR Sensor (C1..C4) | Grove IR Reflective     | D2–D5      | e.g., 16,17,4,5 | Digital input                             |
-| Button – SET       | Grove Button            | D3         |    e.g., GPIO17 | INPUT\_PULLUP                             |
-| Button – UP        | Grove Button            | D4         |     e.g., GPIO4 | INPUT\_PULLUP                             |
-| Button – DOWN      | Grove Button            | D5         |     e.g., GPIO5 | INPUT\_PULLUP                             |
-| Buzzer             | Built-in                | —          |    e.g., GPIO15 | Confirm actual pin from ROBO ESP32 pinout |
-
----
-
-### Wristband (XIAO ESP32C3)
-
-| Function         | Module                       | Pin           | Notes                                 |
-| ---------------- | ---------------------------- | ------------- | ------------------------------------- |
-| DRV2605L SDA/SCL | I²C bus                      | GPIO4 / GPIO5 | Check XIAO pinout                     |
-| DRV2605L VCC/GND | 3V3 / GND                    | —             | 3.3 V                                 |
-| Vibrating Motor  | ERM via DRV2605L OUT+ / OUT− | —             | Driven by DRV2605L                    |
-| LiPo battery     | JST-PH → BAT+/BAT−           | Pads          | Board auto-charges when USB-C plugged |
+### Wristband (ESP32-C3)
+| Function | Pin | Notes |
+|-----------|-----|-------|
+| Maker Drive PWM Input | D10 | Control vibration motor |
+| Maker Drive VCC | 3V3 or VBAT | From battery |
+| Maker Drive GND | GND | Common ground |
+| Li-Po + → Switch → BAT+ | Battery positive line |
+| Li-Po – → BAT– | Battery negative line |
 
 ---
 
 ##  Firmware
 
-### Pillbox (ROBO ESP32)
+## Software Setup
+install CH210X driver if first time use ESP32 : https://www.silabs.com/documents/public/software/CP210x_Windows_Drivers.zip
 
-* Arduino IDE
-* Libraries: `LiquidCrystal_I2C` or Grove RGB LCD lib, `PubSubClient`, `ArduinoJson`, `Preferences`, `WiFi`, `NimBLE-Arduino`
-* Modes:
-
-  * **Scheduler**: compares current time vs reminders
-  * **Alerts**: buzzer + LCD update + MQTT event
-  * **BLE Central**: on alarm, connect to wristband → send `[pattern,repeats,strength]`
-* MQTT events published to `guardianrx/<deviceId>/med/1/event`
-
-### Wristband (XIAO ESP32C3)
-
-* Arduino IDE
-* Libraries: `NimBLE-Arduino`, `Adafruit_DRV2605`, `Wire`
-* BLE Peripheral: advertises custom service
-* Handles write requests to vibrate motor
-* Runs on LiPo battery, charges via USB-C
+### 1. Install Arduino IDE
+1. Install latest **Arduino IDE 2.x**  
+2. Add ESP32 board support "File -> Preferences -> Additional board manager URLs :  https://espressif.github.io/arduino-esp32/package_esp32_index.json
+3. Install **“ESP32 by Espressif Systems”** from Boards Manager.  
+4. Select board:
+- Pillbox → **ESP32 Dev Module**  
+- Wristband → **Seeed XIAO ESP32-C3**
 
 ---
 
-##  MQTT / BLE Protocol
+### 2. Create Telegram Bot
+1. Open Telegram and talk to **@BotFather**.  
+2. Send `/newbot` and follow prompts.  
+3. Copy your **bot token** (e.g. `123456789:ABC-XYZ...`).  
+4. Get your **chat ID**:  
+- Start your bot, send a message.  
+- Visit:  
+  `https://api.telegram.org/bot<your_token>/getUpdates`  
+- Note `"chat":{"id": ... }`.
 
-**MQTT (Pillbox → Node-RED):**
+Put both into `config.h`:
 
-```json
-{
-  "type": "taken_ack",
-  "ts": 1735900200,
-  "med": "Metformin 500mg",
-  "dose": "1 tab after meal",
-  "due": "08:00",
-  "rssi": -61
-}
+```cpp
+#define TELEGRAM_BOT_TOKEN "123456789:ABC-XYZ..."
+#define TELEGRAM_CHAT_ID   "123456789"
 ```
+---
 
-**BLE Write (Pillbox → Wristband):**
+### 3.Configure Wi-Fi
 
-```text
-[pattern_id, repeats, strength]
-```
-
-* `1` = ALARM
-* `2` = LATE
-* `3` = MISSED
-* `4` = SHORT
+Edit in config.h:
+#define WIFI_SSID   "YourWiFiName"
+#define WIFI_PASS   "YourPassword"
 
 ---
 
-##  Backend (Node-RED)
+### 4. Upload Firmware
+Upload guardianrx.ino to the ROBO ESP32.
+Upload wristband.ino to the XIAO ESP32-C3.
+Check Serial Monitor for Wi-Fi IP addresses.
 
-* **MQTT In** → Normalize payload
-* **CSV append** → `/data/guardianrx.csv`
-* **Google Sheets webhook** → Append row
-* **Telegram / Email Alerts** → Immediate on *LATE* or *MISSED*
+##  How to use?
+1. Power both boards (battery or USB).
+2. On LCD:
+- Use UP/DOWN to choose container.
+- Press SET to edit hours → SET → edit minutes → SET to start.
+3. Countdown runs automatically.
+4. When time = 0:
+- Buzzer beeps.
+- Telegram sends “Take medicine from Container X”.
+- Wristband vibrates once.
+5. Open the pillbox → IR sensor logs to Telegram “Container X opened”
 
-See: `backend/nodered/flows.guardianrx.json`
+## MIT License
 
----
+### Copyright (c) 2025 yoshiosenpai
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-##  Test Plan
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-* **Due Reminder** → LCD shows med info, buzzer + vibrate on wristband
-* **IR Sensor** → triggers on interaction
-* **SET Button** → marks `taken_ack` if within window
-* **Late Window** → logs `late`, vibrates pattern 2
-* **Missed** → logs `missed`, vibrates pattern 3
-* **MQTT Offline** → still vibrates + buzzer locally; syncs later
-* **Battery** → wristband runs off LiPo, charges via USB-C
-
----
-
-
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
