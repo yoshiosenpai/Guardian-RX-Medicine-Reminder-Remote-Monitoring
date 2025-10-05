@@ -121,6 +121,7 @@ Check Serial Monitor for Wi-Fi IP addresses.
 - Use UP/DOWN to choose container.
 - Press SET to edit hours → SET → edit minutes → SET to start.
 3. Countdown runs automatically.
+
 4. When time = 0:
 - Buzzer beeps.
 - Telegram sends “Take medicine from Container X”.
