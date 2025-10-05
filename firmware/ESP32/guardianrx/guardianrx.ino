@@ -5,7 +5,6 @@
 #include "rgb_lcd.h"
 #include "config.h"
 
-
 #ifndef WRISTBAND_URL
 #define WRISTBAND_URL "http://192.168.137.214/vibrate"   // <- set IP ESP32-C3 IP
 #endif
@@ -34,7 +33,7 @@ static bool readButton(int pin) {
   if (now != lastLvl[pin] && (millis() - lastMs[pin] > 120)) {
     lastMs[pin]  = millis();
     lastLvl[pin] = now;
-    return (now == LOW);            // "pressed" edge
+    return (now == LOW);            
   }
   return false;
 }
@@ -94,7 +93,6 @@ static void countdownTask(void *pv) {
       if (containers[i].active && containers[i].remaining > 0) {
         containers[i].remaining--;
         if (containers[i].remaining == 0) {
-          // Timer finished for container i
           buzz(700);
           telegramSend("Reminder: Take medicine from Container " + String(i + 1));
           notifyWristband();
@@ -112,7 +110,7 @@ static UiMode uiMode = VIEW;
 static uint32_t lastLcd = 0;
 
 static void uiTask(void *pv) {
-  // Buttons & LCD
+  
   pinMode(PIN_BTN_SET,  INPUT_PULLUP);
   pinMode(PIN_BTN_UP,   INPUT_PULLUP);
   pinMode(PIN_BTN_DOWN, INPUT_PULLUP);
@@ -182,11 +180,11 @@ static void uiTask(void *pv) {
 
     if (readButton(PIN_BTN_SET)) {
       if (uiMode == VIEW) {
-        uiMode = SET_HH;   // enter edit
+        uiMode = SET_HH;   
       } else if (uiMode == SET_HH) {
-        uiMode = SET_MM;   // switch to minutes
+        uiMode = SET_MM;   
       } else {
-        // Save -> convert HH:MM to seconds and start countdown
+        
         containers[currentContainer].remaining =
             (long)containers[currentContainer].hh * 3600L +
             (long)containers[currentContainer].mm * 60L;
@@ -206,7 +204,7 @@ void setup() {
   Serial.begin(115200);
   delay(300);
 
-  // Wi-Fi
+  
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
   Serial.print("[WiFi] Connecting");
@@ -219,7 +217,7 @@ void setup() {
     Serial.println("[WiFi] Failed (continuing offline).");
   }
 
-  // Tasks
+  
   xTaskCreatePinnedToCore(irTask,        "IR",        4096, NULL, 1, NULL, 1);
   xTaskCreatePinnedToCore(countdownTask, "Countdown", 4096, NULL, 1, NULL, 1);
   xTaskCreatePinnedToCore(uiTask,        "UI",        4096, NULL, 1, NULL, 1);
