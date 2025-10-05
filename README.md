@@ -77,8 +77,20 @@ install CH210X driver if first time use ESP32 : https://www.silabs.com/documents
 ### 1. Install Arduino IDE
 1. Install latest **Arduino IDE 2.x**  
 2. Add ESP32 board support "File -> Preferences -> Additional board manager URLs :  https://espressif.github.io/arduino-esp32/package_esp32_index.json
-3. Install **“ESP32 by Espressif Systems”** from Boards Manager.  
-4. Select board:
+3. Install **“ESP32 by Espressif Systems”** from Boards Manager.
+4. Install Library : Sketch → Include Library → Manage Libraries…
+
+| Library                      | Author / Maintainer | Arduino Library Manager Name | Purpose                                    |
+| ---------------------------- | ------------------- | ---------------------------- | ------------------------------------------ |
+| **WiFi**                     | Espressif Systems   | Built-in with ESP32 Core     | Connects to Wi-Fi network                  |
+| **HTTPClient**               | Espressif Systems   | Built-in with ESP32 Core     | Sends Telegram messages & HTTP triggers    |
+| **Wire**                     | Arduino             | Built-in                     | I²C communication for LCD                  |
+| **rgb_lcd**                  | Seeed Studio        | `rgb_lcd`                    | download library here - https://drive.google.com/file/d/1LOmPAiy1JXQyWR2oj1Ev_7BmJewbrA09/view
+| **ArduinoJson** *(optional)* | Benoit Blanchon     | `ArduinoJson`                | For parsing future config files (optional) |
+| **Time / time.h**            | Espressif Systems   | Built-in                     | Handles countdown timing                   |
+| **FreeRTOS**                 | Espressif Systems   | Built-in with ESP32 core     | Used for multitasking (UI, IR, Countdown)  |
+
+5. Select board:
 - Pillbox → **ESP32 Dev Module**  
 - Wristband → **Seeed XIAO ESP32-C3**
 
